@@ -6,7 +6,7 @@ import pytest
 
 from data_pipeline import load_data as load_data_module
 from data_pipeline.load_data import load_data
-from data_pipeline.pipeline import transform_data
+from data_pipeline.pipeline import transform
 
 
 def write_month(path: Path, pickups: list[str], amounts: list[float]) -> Path:
@@ -20,7 +20,7 @@ def write_month(path: Path, pickups: list[str], amounts: list[float]) -> Path:
     return path
 
 
-def test_transform_data_combines_files_and_aggregates(tmp_path: Path) -> None:
+def test_transform_combines_files_and_aggregates(tmp_path: Path) -> None:
     january = write_month(
         tmp_path / "jan.parquet",
         # A December 2024 trip that ended up in the January file is dropped.
@@ -34,7 +34,7 @@ def test_transform_data_combines_files_and_aggregates(tmp_path: Path) -> None:
         [2.0, 7.0],
     )
 
-    result = transform_data([january, february])
+    result = transform([january, february])
 
     assert result.to_dict(orient="records") == [
         {"date": date(2025, 1, 31), "daily_revenue": 17.0},

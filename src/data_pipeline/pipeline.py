@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+from prefect import flow, task
 
 from data_pipeline.config import (
     DEFAULT_MONTHS,
@@ -16,11 +17,13 @@ from data_pipeline.data_transformation import (
 from data_pipeline.load_data import load_data
 
 
-def extract_files() -> list[Path]:
+@task(retries=3, retry_delay_seconds=10)
+def extract() -> list[Path]:
     return download_files(DEFAULT_YEAR, DEFAULT_MONTHS, RAW_DATA_DIR, False)
 
 
-def transform_data(paths: list[Path]) -> pd.DataFrame:
+@task
+def transform(paths: list[Path]) -> pd.DataFrame:
     df = pd.concat(
         [pd.read_parquet(path) for path in paths],
         ignore_index=True,
@@ -31,10 +34,16 @@ def transform_data(paths: list[Path]) -> pd.DataFrame:
     return daily_revenue_df
 
 
+@task
+def load(df: pd.DataFrame) -> Path:
+    return load_data(df)
+
+
+@flow(name="nyc-taxi-daily-revenue", log_prints=True)
 def pipeline() -> None:
-    parquet_paths = extract_files()
-    df = transform_data(parquet_paths)
-    load_data(df)
+    parquet_paths = extract()
+    df = transform(parquet_paths)
+    load(df)
 
 
 if __name__ == "__main__":

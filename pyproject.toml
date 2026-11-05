@@ -31,3 +31,6 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-name = "data_pipeline"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -18,12 +18,24 @@ Raw files that already exist in `data/raw/` are not downloaded again, so running
 To run the tests:
 
 ```bash
-uv run pytest tests
+uv run pytest
 ```
+
+Only the `tests/` folder is collected (set with `testpaths` in [`pyproject.toml`](pyproject.toml)), so the separate `solution/` tests are not run.
+
+### Viewing runs in the Prefect UI
+
+The pipeline is a [Prefect](https://docs.prefect.io/) flow. Without a server it runs as normal and logs to the terminal. To see each run, its steps and their logs in a dashboard, start a local Prefect server in a second terminal before running the pipeline:
+
+```bash
+uv run prefect server start
+```
+
+Then open http://127.0.0.1:4200.
 
 ## How it works
 
-The pipeline has three stages, wired together in [`pipeline.py`](src/data_pipeline/pipeline.py):
+The pipeline has three stages. In [`pipeline.py`](src/data_pipeline/pipeline.py) each stage is a Prefect task (`extract`, `transform`, `load`), and the `nyc-taxi-daily-revenue` flow runs them in order:
 
 | Stage | Module | What it does |
 | --- | --- | --- |
@@ -32,6 +44,8 @@ The pipeline has three stages, wired together in [`pipeline.py`](src/data_pipeli
 | Load | [`load_data.py`](src/data_pipeline/load_data.py) | Writes the daily revenue table to `data/processed/` as Parquet. |
 
 The year, months, URLs and paths are set in [`config.py`](src/data_pipeline/config.py).
+
+The modules hold plain Python functions; only `pipeline.py` uses Prefect. This keeps the logic easy to unit test. The extract task retries up to 3 times, 10 seconds apart, because the download is a network call that can fail temporarily.
 
 ## Why ETL and not ELT
 
@@ -59,6 +73,7 @@ ELT would make more sense if the data were much larger, or if other people neede
 3. Wrote the transform step: select the needed columns, filter to the target date range, and aggregate revenue per day.
 4. Wrote the load step to save the result to `data/processed/`.
 5. Split the code into separate extract, transform and load modules and connected them in a single pipeline entry point.
+6. Turned the pipeline into a Prefect flow, with each stage as a task and retries on the download step.
 
 ### 2. What challenges did I face?
 
