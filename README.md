@@ -1,121 +1,69 @@
-# Data Pipeline Project
+# NYC Green Taxi – Daily Revenue Pipeline
 
-Use this repository as a **template** for your data pipeline project. You will build a pipeline that takes raw NYC taxi trip records and turns them into a processed result. The project is open-ended: the brief sets the goal, and the structure, tools, and implementation choices are yours to make. Create pull requests in your own copy even if you are working alone, and use them to track your progress.
+An ETL pipeline that downloads the NYC [Green Taxi trip records](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) for January–March 2025 and calculates the total revenue per day.
 
-## Learning Objectives
+## Running it
 
-By the end of this repository, you should be able to:
-
-- Write a script that downloads a public dataset into a local staging directory.
-- Build a pipeline that reads staged Parquet files and aggregates them into daily metrics.
-- Separate a pipeline into distinct extract, transform, and load stages.
-- Explain the difference between ETL and ELT, and justify which one your pipeline uses.
-- Orchestrate a pipeline with Prefect (stretch goal).
-
-## Project Brief
-
-In this project you are going to build a data pipeline that processes the `Green Taxi Trips` portion of the [NYC Taxi Trip dataset](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page).
-
-1. Write a script that downloads the data for the first three months of 2025 and stores it in a local staging directory.
-2. Write an ETL or ELT pipeline that reads the locally staged files, processes the data, and calculates revenue per day.
-
-Bonus task, if you have time:
-
-1. Use Prefect for workflow orchestration.
-
-## Learning Path
-
-### Additional Folders and Files
-
-| File / Folder | Description |
-|---|---|
-| [**solution**](solution/) | A complete local ETL implementation with its own README, scripts, package, and tests. |
-| [**pyproject.toml**](pyproject.toml) | Project configuration and dependencies. |
-| [**uv.lock**](uv.lock) | Dependency lock file. |
-
-## Setup
-
-Use [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.13.5 or newer
-and Python 3.13.17 or a newer 3.13 patch release, as defined in
-[`.python-version`](.python-version).
-
-> [!NOTE]
-> Throughout these steps, text in angle brackets like `<repo-name>` is a **placeholder**. Replace it, including the `< >` brackets, with your own value. For example, `cd <repo-name>` becomes `cd mle-data-pipeline-project`.
-
-### 1. Create the Repository from the Template
-
-Click **Use this template** on GitHub.
-
-When creating the repository:
-
-- Set yourself as the **Owner**
-- Choose a repository name
-- Disable **Include all branches**
-- Click **Create repository**
-
-> [!IMPORTANT]
-> If you are working in pairs or groups, only **one person** should complete this step.
-
----
-
-### 2. Add Collaborators (Pairs/Groups Only)
-
-If working with teammates:
-
-1. Open the repository on GitHub
-2. Go to **Settings → Collaborators**
-3. Add your teammates as collaborators
-4. Share the repository link with your team
-
-Teammates should accept the invitation before continuing.
-
----
-
-### 3. Clone the Repository
-
-Copy the SSH URL from the **Code** button on GitHub, then run:
+Requires [uv](https://docs.astral.sh/uv/getting-started/installation/) and Python 3.13 (see [`.python-version`](.python-version)).
 
 ```bash
-git clone <copied-ssh-url>
-```
-
-The copied SSH URL will look like `git@github.com:<your-username>/<repo-name>.git`.
-
----
-
-### 4. Move into the Project Folder and Install Dependencies
-
-This installs all dependencies and creates a virtual environment in `.venv/`.
-
-```bash
-cd <repo-name>
 uv sync
+uv run python -m data_pipeline.pipeline
 ```
 
----
+The result is written to `data/processed/daily_revenue_2025_q1.parquet`: 90 rows, one per day from 2025-01-01 to 2025-03-31, with the columns `date` and `daily_revenue`.
 
-### 5. Open the Repository in VS Code
+Raw files that already exist in `data/raw/` are not downloaded again, so running the pipeline a second time skips the download.
 
-> [!NOTE]
-> Make sure you open VS Code from the project root so it automatically detects the environment created by `uv sync`.
-
-Launch VS Code in the project root folder:
+To run the tests:
 
 ```bash
-code .
+uv run pytest tests
 ```
 
-If you create a notebook to explore the data, select the Python environment created by `uv sync` as the kernel.
+## How it works
 
-## Reference Solution
+The pipeline has three stages, wired together in [`pipeline.py`](src/data_pipeline/pipeline.py):
 
-This repository includes a complete local reference implementation in [solution/](solution/).
-Use it to compare implementation choices and expected outputs. It is one way to solve the project, not the required structure for yours.
+| Stage | Module | What it does |
+| --- | --- | --- |
+| Extract | [`data_ingestion.py`](src/data_pipeline/data_ingestion.py) | Downloads the monthly Parquet files to `data/raw/` (the staging area). |
+| Transform | [`data_transformation.py`](src/data_pipeline/data_transformation.py) | Combines the three months, keeps only `lpep_pickup_datetime` and `total_amount`, drops trips with a pickup date outside Q1 2025, and sums `total_amount` per pickup date. |
+| Load | [`load_data.py`](src/data_pipeline/load_data.py) | Writes the daily revenue table to `data/processed/` as Parquet. |
 
-See [solution/README.md](solution/README.md) for how to run it and how its files fit together.
+The year, months, URLs and paths are set in [`config.py`](src/data_pipeline/config.py).
 
-## Answer the Following Questions
+## Why ETL and not ELT
 
-1. What are the steps you took to complete the project?
-2. What challenges did you face?
-3. What would you do differently if you had more time?
+In **ETL** (extract, transform, load), the data is transformed *before* it is saved to its destination. In **ELT** (extract, load, transform), the raw data is first loaded into the destination, usually a data warehouse, and then transformed there, often with SQL.
+
+This pipeline is ETL. The transformation is done in Python with pandas, and only the final 90-row table is saved. That fits this project:
+
+- The data is small enough (about 146,000 trips) to process in memory on a laptop.
+- There is no warehouse to load raw data into, and none is needed for one daily metric.
+- Only the aggregated result is used, so there is no reason to store the raw data a second time.
+
+ELT would make more sense if the data were much larger, or if other people needed to run different queries on the raw trips inside a warehouse.
+
+## Data notes
+
+- **Pickup dates outside the file's month.** Each monthly file contains a few trips (73 in total) with a pickup date in a neighbouring month, for example December 2024 trips in the January file. The three files are combined before filtering, so a trip that is in the wrong file but still falls in Q1 is counted on its correct day. Only trips with a pickup date outside January–March 2025 are dropped.
+- **Negative `total_amount` values.** 478 trips have a negative `total_amount`. 475 of them have a matching positive trip with the same pickup time and the same amount, so they are reversals of a charge. They are **kept on purpose**: in the daily sum, each pair cancels to zero, which correctly counts a voided trip as no revenue. Dropping only the negative rows would leave the positive half and overstate revenue.
+
+## Project questions
+
+### 1. What steps did I take to complete the project?
+
+1. Wrote the extract step to download the three monthly files to a local staging directory, skipping files that already exist.
+2. Explored the downloaded data in [`notebooks/data_exploration.ipynb`](notebooks/data_exploration.ipynb) to understand the columns and spot data quality issues.
+3. Wrote the transform step: select the needed columns, filter to the target date range, and aggregate revenue per day.
+4. Wrote the load step to save the result to `data/processed/`.
+5. Split the code into separate extract, transform and load modules and connected them in a single pipeline entry point.
+
+### 2. What challenges did I face?
+
+_TODO_
+
+### 3. What would I do differently with more time?
+
+_TODO_
