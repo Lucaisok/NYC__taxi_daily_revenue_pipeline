@@ -77,8 +77,9 @@ ELT would make more sense if the data were much larger, or if other people neede
 
 ### 2. What challenges did I face?
 
-_TODO_
+1. **Negative revenue values.** About 478 trips had a negative `total_amount`. My first instinct was to drop them as bad data, but when I explored them I found that almost all of them reverse an earlier charge: there is a matching positive trip with the same pickup time and amount. Dropping only the negative rows would have overstated revenue, so I kept them and let each pair cancel out in the daily sum. I learned to check what "bad-looking" data actually means before removing it.
+2. **Trips in the wrong monthly file.** Each monthly file contained a few trips with pickup dates in a neighbouring month, including some from December 2024. Filtering each file to its own month would have dropped valid Q1 trips that happened to be in the wrong file. I fixed this by combining all three files first and then filtering to the full January–March range.
 
 ### 3. What would I do differently with more time?
 
-_TODO_
+1. **Make the pipeline more configurable and schedule it.** The year and months are currently fixed in `config.py`, and the date filter in `filter_dates` is hard-coded to Q1 2025. I would pass the year and months in as flow parameters, build the date range from them, and use a Prefect deployment to run the flow automatically each month when new data is published.
