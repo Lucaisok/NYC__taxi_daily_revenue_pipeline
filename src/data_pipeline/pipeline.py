@@ -2,13 +2,18 @@ from pathlib import Path
 
 import pandas as pd
 
-from data_pipeline.config import DEFAULT_MONTHS, DEFAULT_YEAR, RAW_DATA_DIR
+from data_pipeline.config import (
+    DEFAULT_MONTHS,
+    DEFAULT_YEAR,
+    RAW_DATA_DIR,
+)
 from data_pipeline.data_ingestion import download_files
 from data_pipeline.data_transformation import (
     filter_columns,
     filter_dates,
     get_daily_revenue,
 )
+from data_pipeline.load_data import load_data
 
 
 def extract_files() -> list[Path]:
@@ -26,11 +31,11 @@ def transform_data(paths: list[Path]) -> pd.DataFrame:
     return daily_revenue_df
 
 
-def main() -> None:
+def pipeline() -> None:
     parquet_paths = extract_files()
-    data = transform_data(parquet_paths)
-    print(data.head(10))
+    df = transform_data(parquet_paths)
+    load_data(df)
 
 
 if __name__ == "__main__":
-    main()
+    pipeline()
