@@ -1,7 +1,7 @@
 [project]
 name = "mle-data-pipeline-project"
 version = "0.1.0"
-requires-python = ">=3.13.17"
+requires-python = ">=3.13.14"
 dependencies = [
     "click>=8.5.0",
     "pandas>=3.0.5",
@@ -20,7 +20,14 @@ dev = [
 root = [".", "solution/src"]
 
 [tool.uv]
-required-version = ">=0.13.5"
+required-version = ">=0.11.26"
 # Apply certificate fixes without adding unused runtime packages.
 # Prefect's server still uses FastAPI's removed min_items argument.
 constraint-dependencies = ["certifi>=2026.10.19", "pip>=26.2.2", "fastapi<0.155"]
+
+[build-system]
+requires = ["uv_build>=0.11.26,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "data_pipeline"
